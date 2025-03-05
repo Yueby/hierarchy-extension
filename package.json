@@ -1,0 +1,48 @@
+{
+    "$schema": "./@types/schema/package/index.json",
+    "package_version": 2,
+    "name": "hierarchy-extension",
+    "version": "1.0.0",
+    "author": "yueby",
+    "editor": ">=3.8.3",
+    "scripts": {
+        "preinstall": "node ./scripts/preinstall.js",
+        "build": "tsc",
+        "watch": "tsc -w"
+    },
+    "description": "i18n:hierarchy-extension.description",
+    "main": "./dist/main.js",
+    "devDependencies": {
+        "@cocos/creator-types": "^3.8.5",
+        "@types/node": "^18.17.1",
+        "typescript": "^4.3.4",
+        "vue": "^3.1.4",
+        "electron": "^35.0.0"
+    },
+    "contributions": {
+        "messages": {
+            "scene:ready": {
+                "methods": [
+                    "onSceneReady"
+                ]
+            },
+            "set-node-active": {
+                "methods": [
+                    "setNodeActive"
+                ]
+            },
+            "scene:change-node": {
+                "methods": [
+                    "onSceneChangeNode"
+                ]
+            }
+        },
+        "shortcuts": [
+            {
+                "message": "set-node-active",
+                "win": "shift+alt+a",
+                "mac": "shift+command+a"
+            }
+        ]
+    }
+}
