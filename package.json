@@ -21,9 +21,19 @@
     },
     "contributions": {
         "messages": {
+            "scene:show-loading":{
+                "methods":[
+                    "onSceneShowLoading"
+                ]
+            },
             "scene:ready": {
                 "methods": [
                     "onSceneReady"
+                ]
+            },
+            "reference-image:show": {
+                "methods": [
+                    "onReferenceImageShow"
                 ]
             },
             "set-node-active": {
@@ -34,6 +44,11 @@
             "scene:change-node": {
                 "methods": [
                     "onSceneChangeNode"
+                ]
+            },
+            "hierarchy-app-ready": {
+                "methods": [
+                    "hierarchy-app-ready"
                 ]
             }
         },
