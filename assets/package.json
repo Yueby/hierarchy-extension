@@ -1,0 +1,24 @@
+{
+    "package_version": 2,
+    "name": "hierarchy-extension",
+    "author": "yueby",
+    "editor": ">=3.7.4",
+    "description": "i18n:hierarchy-extension.description",
+    "main": "./main.js",
+    "contributions": {
+        "messages": {
+            "set-node-active": {
+                "methods": [
+                    "setNodeActive"
+                ]
+            }
+        },
+        "shortcuts": [
+            {
+                "message": "set-node-active",
+                "win": "shift+alt+a",
+                "mac": "shift+command+a"
+            }
+        ]
+    }
+}
