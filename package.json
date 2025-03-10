@@ -4,7 +4,7 @@
     "name": "hierarchy-extension",
     "version": "1.0.0",
     "author": "yueby",
-    "editor": ">=3.8.3",
+    "editor": ">=3.7.4",
     "scripts": {
         "preinstall": "node ./scripts/preinstall.js",
         "build": "tsc",
