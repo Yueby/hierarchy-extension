@@ -22,7 +22,8 @@ const outputDir = `dist/${appName}`;
 export default {
     input: {
         main: 'source/main.ts',
-        renderer: 'source/renderer.ts'
+        nodeTree: 'source/nodeTree.ts',
+        hack: 'source/hack.ts'
     },
     output: {
         dir: outputDir,

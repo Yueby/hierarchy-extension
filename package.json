@@ -1,15 +1,11 @@
 {
     "name": "hierarchy-extension",
+    "title": "hierarchy-extension",
     "version": "1.0.0",
     "description": "i18n:hierarchy-extension.description",
-    "main": "./main.js",
-    "author": "yueby",
-    "editor": ">=3.7.4",
-    "scripts": {
-        "preinstall": "node ./scripts/preinstall.js",
-        "clear": "rm -rf dist",
-        "watch": "pnpm clear && rollup -c -w",
-        "build": "pnpm clear && rollup -c"
+    "main": "dist/hierarchy-extension/main.js",
+    "dependencies": {
+        "vue": "^3.3.4"
     },
     "devDependencies": {
         "@cocos/creator-types": "^3.8.1",
@@ -19,13 +15,30 @@
         "@rollup/plugin-node-resolve": "^15.0.0",
         "@rollup/plugin-terser": "^0.1.0",
         "@rollup/plugin-typescript": "^9.0.2",
-        "@types/node": "^18.17.1",
+        "@types/node": "^16.0.1",
+        "archiver": "^6.0.1",
         "electron": "^35.0.0",
         "is-builtin-module": "^3.2.0",
         "node-cmd": "^5.0.0",
         "rollup": "^2.79.1",
         "rollup-plugin-copy": "^3.4.0",
         "tslib": "^2.8.1",
-        "typescript": "~4.8.4"
-    }
+        "typescript": "^4.3.4"
+    },
+    "author": "i18n:hierarchy-extension.author",
+    "editor": ">=3.0.0",
+    "scripts": {
+        "preinstall": "node ./scripts/preinstall.js",
+        "clear": "rm -rf dist",
+        "watch": "rollup -c -w",
+        "build": "rollup -c",
+        "package": "node ./scripts/package.js"
+    },
+    "files": [
+        "dist",
+        "static",
+        "i18n",
+        "panel",
+        "package.json"
+    ]
 }
