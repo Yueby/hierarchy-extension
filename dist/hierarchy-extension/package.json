@@ -11,6 +11,11 @@
         "methods": [
           "setNodeActive"
         ]
+      },
+      "scene:ready": {
+        "methods": [
+          "sceneReady"
+        ]
       }
     },
     "shortcuts": [
@@ -19,7 +24,13 @@
         "win": "shift+alt+a",
         "mac": "shift+command+a"
       }
-    ]
+    ],
+    "hierarchy": {
+      "menu": {
+        "methods": "./hierarchyMenu.js",
+        "createMenu": "onCreateMenu"
+      }
+    }
   },
-  "version": "1.0.0"
+  "version": "1.0.1"
 }

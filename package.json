@@ -1,9 +1,10 @@
 {
     "name": "hierarchy-extension",
     "title": "hierarchy-extension",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "i18n:hierarchy-extension.description",
     "main": "dist/hierarchy-extension/main.js",
+    "type": "module",
     "dependencies": {
         "vue": "^3.3.4"
     },
@@ -30,8 +31,8 @@
     "scripts": {
         "preinstall": "node ./scripts/preinstall.js",
         "clear": "rm -rf dist",
-        "watch": "rollup -c -w",
-        "build": "rollup -c",
+        "watch": "pnpm clear && rollup -c -w",
+        "build": "pnpm clear && rollup -c",
         "package": "node ./scripts/package.js"
     },
     "files": [

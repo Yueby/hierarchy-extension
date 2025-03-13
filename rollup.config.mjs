@@ -23,7 +23,8 @@ export default {
     input: {
         main: 'source/main.ts',
         nodeTree: 'source/nodeTree.ts',
-        hack: 'source/hack.ts'
+        hack: 'source/hack.ts',
+        hierarchyMenu: 'source/hierarchyMenu.ts'
     },
     output: {
         dir: outputDir,
