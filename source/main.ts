@@ -1,4 +1,3 @@
-
 import fs from "fs";
 import { WebContents, BrowserWindow } from "electron";
 import path from "path";
@@ -15,14 +14,10 @@ export const methods: { [key: string]: (...any: any) => any; } = {
      */
     async setNodeActive() {
         const uuids = Editor.Selection.getSelected('node');
-
-        if (uuids.length <= 0) {
-            return;
-        }
+        if (uuids.length <= 0) return;
 
         for (let nodeUuid of uuids) {
             const nodeInfo = await Editor.Message.request('scene', 'query-node', nodeUuid);
-
             await Editor.Message.request('scene', 'set-property', {
                 uuid: nodeUuid,
                 path: 'active',
@@ -32,10 +27,6 @@ export const methods: { [key: string]: (...any: any) => any; } = {
                 }
             });
         }
-    },
-
-    async sceneReady(uuid: string) {
-
     }
 };
 
@@ -62,29 +53,33 @@ function inject(): void {
     }
 
     const hierarchyInit = fs.readFileSync(path.join(__dirname, 'hierarchy-init.js'), 'utf-8');
-    webContents.executeJavaScript(hierarchyInit);
+    webContents.executeJavaScript(`(async () => {
+        try {
+            await ${hierarchyInit};
+            const testExtension = ${fs.readFileSync(path.join(__dirname, 'test-extension.js'), 'utf-8')};
+            await testExtension;
+            return true;
+        } catch (error) {
+            console.error('注入失败:', error);
+            return false;
+        }
+    })()`)
+    .catch(error => console.error('注入失败:', error));
 }
 
 function getMainWebContents(): WebContents | null {
-    let allwins = BrowserWindow.getAllWindows();
-
-
-    for (let i = 0; i < allwins.length; i++) {
-        const win = allwins[i];
+    for (const win of BrowserWindow.getAllWindows()) {
         try {
             const url = win.webContents.getURL();
             const title = win.getTitle() || '';
-
             if (url.includes('windows/main.html') || title.includes('Cocos Creator')) {
-
                 return win.webContents;
             }
         } catch (error) {
-            console.error(`获取窗口 ${i} 信息时出错:`, error);
+            console.error('获取窗口信息时出错:', error);
         }
     }
     console.warn("未找到Cocos Creator主窗口");
     return null;
 }
-
 
