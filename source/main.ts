@@ -35,7 +35,7 @@ export const methods: { [key: string]: (...any: any) => any; } = {
     },
 
     async sceneReady(uuid: string) {
-        console.log("document", (globalThis as any).document);
+
     }
 };
 
@@ -44,23 +44,7 @@ export const methods: { [key: string]: (...any: any) => any; } = {
  * @zh 扩展启动时触发的方法
  */
 export function load() {
-    const webContents = getMainWebContents();
-    if (!webContents) {
-        console.warn("注入失败: webContents 为空");
-        return;
-    }
-
-
-    const nodeTreeScript = fs.readFileSync(path.join(__dirname, 'nodeTree.js'), 'utf-8');
-    const hackScript = fs.readFileSync(path.join(__dirname, 'hack.js'), 'utf-8');
-
-    webContents.executeJavaScript(`
-        (function() {
-            ${hackScript}
-        })();
-      `);
-
-
+    inject();
 }
 
 /**
@@ -68,6 +52,17 @@ export function load() {
  * @zh 卸载扩展时触发的方法
  */
 export function unload() {
+}
+
+function inject(): void {
+    const webContents = getMainWebContents();
+    if (!webContents) {
+        console.warn("注入失败: webContents 为空");
+        return;
+    }
+
+    const hierarchyInit = fs.readFileSync(path.join(__dirname, 'hierarchy-init.js'), 'utf-8');
+    webContents.executeJavaScript(hierarchyInit);
 }
 
 function getMainWebContents(): WebContents | null {

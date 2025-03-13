@@ -22,9 +22,7 @@ const outputDir = `dist/${appName}`;
 export default {
     input: {
         main: 'source/main.ts',
-        nodeTree: 'source/nodeTree.ts',
-        hack: 'source/hack.ts',
-        hierarchyMenu: 'source/hierarchyMenu.ts'
+        'hierarchy-init': 'source/hierarchy-init.ts',
     },
     output: {
         dir: outputDir,

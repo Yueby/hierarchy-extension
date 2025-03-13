@@ -24,12 +24,6 @@
                 "win": "shift+alt+a",
                 "mac": "shift+command+a"
             }
-        ],
-        "hierarchy": {
-            "menu": {
-                "methods": "./hierarchyMenu.js",
-                "createMenu": "onCreateMenu"
-            }
-        }
+        ]
     }
 }
