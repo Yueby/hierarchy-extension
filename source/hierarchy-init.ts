@@ -1,132 +1,199 @@
-import { HierarchyEvents, HierarchyEventMap, HierarchyNode, HierarchyNodeData, ExtensionLifecycle, ExtensionOptions, ExtensionInstance, HierarchyManager, HierarchyTree } from './types';
+import { HierarchyEvents, HierarchyEventMap, TreeNode, ExtensionOptions, ExtensionInstance, HierarchyManager, HierarchyTree, TreeNodeVueComponent, HierarchyEventOptions } from './types';
 
 (function () {
+
     /** 获取层级面板的Vue实例 */
-    function getHierarchyDragArea() {
+    function getHierarchyVue() {
         // 1. 获取 dock-frame
         const dockFrame = document.getElementsByTagName("dock-frame")[0];
         if (!dockFrame?.shadowRoot) {
-            console.warn('[Hierarchy] 未找到dock-frame');
+            window.utils.log(window.utils.LogLevel.WARN, 'Hierarchy', '未找到dock-frame');
             return null;
         }
 
         // 2. 获取 hierarchy 面板
         const panelFrames = dockFrame.shadowRoot.querySelectorAll("panel-frame");
-        const hierarchyPanel = Array.from(panelFrames).find(panel => 
+        const hierarchyPanel = Array.from(panelFrames).find(panel =>
             panel.getAttribute("name") === "hierarchy"
         );
-        
+
         if (!hierarchyPanel?.shadowRoot) {
-            console.warn('[Hierarchy] 未找到hierarchy面板');
+            window.utils.log(window.utils.LogLevel.WARN, 'Hierarchy', '未找到hierarchy面板');
             return null;
         }
 
         // 3. 获取drag-area
         const dragArea = hierarchyPanel.shadowRoot.querySelector("ui-drag-area");
         if (!dragArea) {
-            console.warn('[Hierarchy] 未找到drag-area');
+            window.utils.log(window.utils.LogLevel.WARN, 'Hierarchy', '未找到drag-area');
             return null;
         }
 
         // 4. 获取Vue实例
         const vue = (dragArea as any).__vue__;
         if (!vue) {
-            console.warn('[Hierarchy] 未找到Vue实例');
+            window.utils.log(window.utils.LogLevel.WARN, 'Hierarchy', '未找到Vue实例');
             return null;
         }
 
         // 5. 等待节点数据加载
         if (!vue.nodes?.length) {
-            console.warn('[Hierarchy] 节点数据未加载');
+            window.utils.log(window.utils.LogLevel.WARN, 'Hierarchy', '节点数据未加载');
             return null;
         }
 
-        // 6. 打印节点信息
-        console.log('[Hierarchy] 节点数据:', {
-            nodes: vue.nodes.map((n: HierarchyNodeData) => ({
-                uuid: n.uuid,
-                name: n.name,
-                type: n.type,
-                parent: n.parent
-            })),
-            children: vue.$children.map((c: { uuid?: string; $el?: any }) => ({
-                uuid: c.uuid,
-                el: !!c.$el
-            }))
-        });
+        // 6. 输出调试信息
+        window.utils.log(window.utils.LogLevel.DEBUG, 'Hierarchy', '场景结构:', vue.nodes.map((node: TreeNode) => ({
+            name: node.name,
+            type: node.type,
+            depth: node.depth,
+            path: node.path,
+            children: node.children?.length || 0
+        })));
+
+        window.utils.log(window.utils.LogLevel.DEBUG, 'Hierarchy', 'Vue组件节点数据:', vue.$children?.map((child: TreeNodeVueComponent) => ({
+            name: child.$props.node.name,
+            uuid: child.$props.node.uuid,
+            type: child.$props.node.type,
+            path: child.$props.node.path,
+            depth: child.$props.node.depth,
+            element: child.$el.outerHTML,
+            完整节点: child.$props.node
+        })));
 
         return vue;
-    }
+    };
 
     /** 创建事件系统 */
     function createEvents(): HierarchyEvents {
-        const listeners = new Map<keyof HierarchyEventMap, Function[]>();
-        
+        // 使用Map存储事件监听器，键为事件名，值为包含回调和选项的对象数组
+        const listeners = new Map<keyof HierarchyEventMap, Array<{
+            callback: Function,
+            options?: HierarchyEventOptions;
+        }>>();
+
         return {
-            listeners,
+            listeners: new Map<keyof HierarchyEventMap, Function[]>(),
+
             emit<K extends keyof HierarchyEventMap>(event: K, ...args: Parameters<HierarchyEventMap[K]>) {
                 const eventListeners = listeners.get(event) || [];
-                eventListeners.forEach((fn: Function) => fn(...args));
+
+                // 按优先级排序
+                const sortedListeners = [...eventListeners].sort((a, b) =>
+                    (b.options?.priority || 0) - (a.options?.priority || 0)
+                );
+
+                // 执行回调
+                sortedListeners.forEach(({ callback, options }) => {
+                    try {
+                        callback(...args);
+                    } catch (error) {
+                        window.utils.log(window.utils.LogLevel.ERROR, 'Events', `事件处理错误 [${String(event)}]:`, error);
+                    }
+
+                    // 如果是一次性事件，执行后移除
+                    if (options?.once) {
+                        this.off(event, callback as any);
+                    }
+                });
             },
-            on<K extends keyof HierarchyEventMap>(event: K, callback: HierarchyEventMap[K]) {
+
+            on<K extends keyof HierarchyEventMap>(event: K, callback: HierarchyEventMap[K], options?: HierarchyEventOptions) {
                 if (!listeners.has(event)) {
                     listeners.set(event, []);
                 }
-                listeners.get(event)!.push(callback);
+
+                listeners.get(event)!.push({
+                    callback: callback as Function,
+                    options
+                });
+
+                // 为了兼容旧的接口，同时更新listeners Map
+                if (!this.listeners.has(event)) {
+                    this.listeners.set(event, []);
+                }
+                this.listeners.get(event)!.push(callback as Function);
             },
+
             off<K extends keyof HierarchyEventMap>(event: K, callback: HierarchyEventMap[K]) {
                 const eventListeners = listeners.get(event);
                 if (eventListeners) {
-                    const index = eventListeners.indexOf(callback);
+                    const index = eventListeners.findIndex(item => item.callback === callback);
                     if (index > -1) {
                         eventListeners.splice(index, 1);
                     }
                 }
+
+                // 同时更新旧的listeners Map
+                const oldListeners = this.listeners.get(event);
+                if (oldListeners) {
+                    const index = oldListeners.indexOf(callback as Function);
+                    if (index > -1) {
+                        oldListeners.splice(index, 1);
+                    }
+                }
             },
+
             clear() {
                 listeners.clear();
+                this.listeners.clear();
             }
         };
     }
 
     /** 创建节点树系统 */
     function createTree(): HierarchyTree {
-        const nodeMap = new Map<string, HierarchyNode>();
-        const rootNodes: HierarchyNode[] = [];
+        const nodeMap = new Map<string, TreeNode>();
 
         return {
             nodeMap,
-            rootNodes,
-            getChildren(uuid: string) {
-                return Array.from(nodeMap.values()).filter(node => node.parent === uuid);
-            },
-            getParent(uuid: string) {
-                const node = nodeMap.get(uuid);
-                return node ? nodeMap.get(node.parent) || null : null;
-            },
-            isParent(nodeUuid: string, parentUuid: string) {
-                let currentNode = nodeMap.get(nodeUuid);
-                while (currentNode) {
-                    if (currentNode.parent === parentUuid) return true;
-                    currentNode = nodeMap.get(currentNode.parent);
-                }
-                return false;
-            },
+
             clear() {
                 nodeMap.clear();
-                rootNodes.length = 0;
             },
-            addNode(node: HierarchyNode) {
+
+            getNode(uuid: string) {
+                return nodeMap.get(uuid);
+            },
+
+            addNode(node: TreeNode) {
+                // 确保node有children数组
+                if (!node.children) {
+                    node.children = [];
+                }
+
                 nodeMap.set(node.uuid, node);
-                if (!node.parent) rootNodes.push(node);
+
+                // 处理父子关系
+                if (node.parent) {
+                    const parentNode = nodeMap.get(node.parent);
+                    if (parentNode) {
+                        parentNode.children.push(node);
+                    }
+                }
             },
+
             removeNode(uuid: string) {
                 const node = nodeMap.get(uuid);
-                if (node) {
-                    nodeMap.delete(uuid);
-                    const rootIndex = rootNodes.indexOf(node);
-                    if (rootIndex > -1) rootNodes.splice(rootIndex, 1);
+                if (!node) return;
+
+                // 从父节点中移除
+                if (node.parent) {
+                    const parentNode = nodeMap.get(node.parent);
+                    if (parentNode) {
+                        parentNode.children = parentNode.children.filter(
+                            child => child.uuid !== uuid
+                        );
+                    }
                 }
+
+                // 递归移除所有子节点
+                node.children.forEach(child => this.removeNode(child.uuid));
+                nodeMap.delete(uuid);
+            },
+
+            getNodeCount() {
+                return nodeMap.size;
             }
         };
     }
@@ -136,33 +203,10 @@ import { HierarchyEvents, HierarchyEventMap, HierarchyNode, HierarchyNodeData, E
         const extensions = new Map<string, ExtensionInstance>();
         let currentAssetId = '';
         let currentAssetType: 'scene' | 'prefab' = 'scene';
-        let updateTimer: ReturnType<typeof setTimeout> | null = null;
-
-        /** 添加扩展样式 */
-        function addStyle(id: string, className: string, css?: string) {
-            if (!css || !manager.vue?.$el) return;
-
-            const styleId = `hierarchy-style-${id}`;
-            let style = document.getElementById(styleId);
-            
-            if (!style) {
-                style = document.createElement('style');
-                style.id = styleId;
-                manager.vue.$el.appendChild(style);
-            }
-            
-            style.textContent = css;
-        }
-
-        /** 移除扩展样式 */
-        function removeStyle(id: string) {
-            const style = document.getElementById(`hierarchy-style-${id}`);
-            style?.remove();
-        }
 
         /** 检查资源是否变化 */
         function checkAssetChange(vue: any) {
-            if (!vue?.nodes?.length) {
+            if (!manager.vue?.nodes?.length) {
                 if (currentAssetId) {
                     currentAssetId = '';
                     currentAssetType = 'scene';
@@ -171,11 +215,14 @@ import { HierarchyEvents, HierarchyEventMap, HierarchyNode, HierarchyNodeData, E
                 return false;
             }
 
-            const firstNode = vue.nodes[0];
-            const newAssetId = firstNode.type === "cc.Scene" 
-                ? firstNode.uuid 
-                : firstNode.prefab?.assetUuid || "";
-            const newAssetType = firstNode.type === "cc.Scene" ? 'scene' : 'prefab';
+            const firstNode = manager.vue.nodes[0];
+            const firstNodeData = manager.getNode(firstNode.uuid);
+            if (!firstNodeData) return false;
+
+            const newAssetId = firstNodeData.type === "cc.Scene"
+                ? firstNodeData.uuid
+                : firstNodeData.prefab?.assetUuid || "";
+            const newAssetType = firstNodeData.type === "cc.Scene" ? 'scene' : 'prefab';
 
             if (newAssetId !== currentAssetId) {
                 currentAssetId = newAssetId;
@@ -187,36 +234,15 @@ import { HierarchyEvents, HierarchyEventMap, HierarchyNode, HierarchyNodeData, E
         }
 
         return {
-            add(options: ExtensionOptions): ExtensionInstance {
+            add(options: ExtensionOptions): void {
                 if (extensions.has(options.id)) {
                     throw new Error(`Extension with id ${options.id} already exists`);
                 }
 
-                addStyle(options.id, options.className, options.style);
-                options.lifecycle?.onInit?.();
-                
-                if (options.lifecycle?.onAssetChange && manager.events) {
-                    manager.events.on('assetChange', options.lifecycle.onAssetChange);
-                }
-
-                const instance: ExtensionInstance = {
-                    ...options,
-                    destroy: () => {
-                        options.lifecycle?.onDestroy?.();
-                        if (options.lifecycle?.onAssetChange && manager.events) {
-                            manager.events.off('assetChange', options.lifecycle.onAssetChange);
-                        }
-                        removeStyle(options.id);
-                        extensions.delete(options.id);
-                        manager.events?.emit('extensionRemoved', options.id);
-                    }
-                };
-
-                extensions.set(options.id, instance);
-                manager.events?.emit('extensionAdded', instance);
+                extensions.set(options.id, options);
+                window.utils.log(window.utils.LogLevel.WARN, 'Extension', `添加扩展: ${options.id}`);
+                manager.events?.emit('extensionAdded', options);
                 this.updateAll();
-
-                return instance;
             },
 
             get(id: string) {
@@ -224,8 +250,13 @@ import { HierarchyEvents, HierarchyEventMap, HierarchyNode, HierarchyNodeData, E
             },
 
             remove(id: string) {
-                const instance = extensions.get(id);
-                instance?.destroy();
+                const extension = extensions.get(id);
+                if (extension) {
+                    extension.onDestroy?.();
+                    extensions.delete(id);
+                    window.utils.log(window.utils.LogLevel.WARN, 'Extension', `移除扩展: ${id}`);
+                    manager.events?.emit('extensionRemoved', id);
+                }
             },
 
             getAll() {
@@ -233,43 +264,60 @@ import { HierarchyEvents, HierarchyEventMap, HierarchyNode, HierarchyNodeData, E
             },
 
             updateAll() {
-                if (updateTimer || !manager.vue) return;
+                if (!manager.vue || !manager.tree) {
+                    window.utils.log(window.utils.LogLevel.ERROR, 'Extension', '更新取消: manager未就绪');
+                    return;
+                }
 
-                const vue = manager.vue;
-                if (checkAssetChange(vue)) {
+                if (checkAssetChange(manager.vue)) {
                     manager.events?.emit('assetChange', currentAssetId, currentAssetType);
                 }
 
-                vue.$children.forEach((vueNode: any) => {
-                    const element = vueNode.$el as HTMLElement;
-                    
-                    extensions.forEach(extension => {
-                        const visible = extension.isVisible(vueNode);
-                        let container = element.querySelector(`.${extension.className}`) as HTMLElement | null;
+                // 按优先级排序扩展
+                const sortedExtensions = Array.from(extensions.values())
+                    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
+                for (const uuid of manager.tree.nodeMap.keys()) {
+                    const node = manager.getNode(uuid);
+                    const vueComponent = manager.getVueComponent(uuid);
+
+                    if (!node || !vueComponent) continue;
+
+                    const element = vueComponent.$el;
+                    if (!element) continue;
+
+                    // 创建或获取container
+                    let container = element.querySelector('.hierarchy-extension-container') as HTMLElement;
+                    if (!container) {
+                        // 只在第一次设置position
+                        element.style.position = 'relative';
+
+                        container = document.createElement('div');
+                        container.className = 'hierarchy-extension-container';
+                        container.style.cssText = `
+                            position: absolute;
+                            left: 0;
+                            top: 0;
+                            width: 100%;
+                            height: 100%;
+                            pointer-events: none;
+                            z-index: 999;
+                        `;
+                        element.appendChild(container);
+                    }
+
+                    sortedExtensions.forEach(extension => {
+                        const visible = extension.isVisible?.(node) ?? true;
                         if (!visible) {
-                            container?.remove();
+                            extension.onDestroy?.(node);
                             return;
                         }
 
-                        if (visible && !container) {
-                            container = document.createElement('div');
-                            container.className = extension.className;
-                            element.appendChild(container);
-                            extension.onCreate(vueNode, container);
-                        }
-
-                        if (container && extension.onUpdate) {
-                            extension.onUpdate(vueNode, container);
+                        if (container) {
+                            extension.onCreate?.(node, container);
                         }
                     });
-                });
-
-                updateTimer = setTimeout(() => {
-                    updateTimer = null;
-                }, 0);
-                
-                manager.events?.emit('treeUpdate');
+                }
             },
 
             clear() {
@@ -286,73 +334,74 @@ import { HierarchyEvents, HierarchyEventMap, HierarchyNode, HierarchyNodeData, E
             events: null,
             extension: null,
 
-            refresh() {
+            refresh: window.utils.debounce(function (this: HierarchyManager) {
+                this._doRefresh();
+            }, 50),
+
+            _doRefresh() {
+                window.utils.log(window.utils.LogLevel.INFO, 'Hierarchy', '开始刷新');
                 if (!this.vue || !this.tree) return;
 
-                console.log('[Hierarchy] 开始刷新节点树');
-                
-                // 确保数据存在
-                if (!this.vue.nodes?.length) {
-                    console.warn('[Hierarchy] 无节点数据');
-                    return;
-                }
-
                 this.tree.clear();
-                
-                // 处理所有节点
-                for (const nodeData of this.vue.nodes) {
-                    // 找到对应的Vue组件
-                    const vueNode = this.vue.$children.find(child => {
-                        const el = (child as any).$el as HTMLElement;
-                        const childUuid = el?.dataset?.uuid || (child as any).uuid;
-                        return childUuid === nodeData.uuid;
-                    });
 
-                    if (!vueNode) {
-                        console.warn('[Hierarchy] 未找到节点组件:', {
-                            uuid: nodeData.uuid,
-                            name: nodeData.name,
-                            availableChildren: this.vue.$children.map(c => ({
-                                uuid: (c as any).uuid,
-                                elUuid: ((c as any).$el as HTMLElement)?.dataset?.uuid
-                            }))
-                        });
-                        continue;
-                    }
+                // 批量处理节点
+                const nodeBatch = [...this.vue.nodes];
 
-                    const node: HierarchyNode = {
-                        uuid: nodeData.uuid,
-                        name: nodeData.name,
-                        type: nodeData.type,
-                        parent: nodeData.parent,
-                        active: nodeData.active,
-                        prefab: nodeData.prefab,
-                        element: (vueNode as any).$el,
-                        vueComponent: vueNode
-                    };
-
-                    console.log('[Hierarchy] 添加节点:', {
-                        uuid: node.uuid,
-                        name: node.name,
-                        type: node.type,
-                        hasElement: !!node.element,
-                        hasVueComponent: !!node.vueComponent
-                    });
-
+                // 先建立树结构
+                for (const node of nodeBatch) {
                     this.tree.addNode(node);
                 }
 
-                console.log('[Hierarchy] 刷新完成:', {
-                    nodes: this.tree.nodeMap.size,
-                    roots: this.tree.rootNodes.length,
-                    firstNode: this.tree.rootNodes[0]?.name
-                });
-                
+                // 然后处理Vue组件
+                for (const node of nodeBatch) {
+                    // 获取对应的Vue组件实例
+                    const treeNode = this.getVueComponent(node.uuid);
+
+                    if (treeNode) {
+                        // 设置组件引用
+                        node.vueComponent = treeNode;
+
+                        // 输出节点信息
+                        window.utils.log(window.utils.LogLevel.DEBUG, 'Hierarchy', '处理节点:', {
+                            name: node.name,
+                            path: node.path,
+                            depth: node.depth,
+                            uuid: node.uuid,
+                            element: treeNode.$el?.outerHTML || '未找到元素'
+                        });
+                    }
+                }
+
+                // 触发更新事件
                 this.events?.emit('treeUpdate');
+
+                // 更新所有扩展
+                this.extension?.updateAll();
+            },
+
+            getNodeHierarchyInfo(node: TreeNode): any {
+                return {
+                    name: node.name,
+                    type: node.type,
+                    children: node.children.map(child => this.getNodeHierarchyInfo(child))
+                };
+            },
+
+            getElement(uuid: string): HTMLElement | undefined {
+                return this.getVueComponent(uuid)?.$el;
+            },
+
+            getVueComponent(uuid: string): TreeNodeVueComponent | undefined {
+                if (!this.vue?.$children) return undefined;
+                return this.vue.$children.find(child => child.$props.node.uuid === uuid);
+            },
+
+            getNode(uuid: string): TreeNode | undefined {
+                return this.tree?.getNode(uuid);
             },
 
             init() {
-                const vue = getHierarchyDragArea();
+                const vue = getHierarchyVue();
                 if (!vue) return false;
 
                 this.vue = vue;
@@ -360,13 +409,12 @@ import { HierarchyEvents, HierarchyEventMap, HierarchyNode, HierarchyNodeData, E
                 this.events = createEvents();
                 this.extension = createExtension(this);
 
+                // 修改watch回调，避免重复触发更新事件
                 this.vue!.$watch('nodes', () => {
-                    this.refresh();
-                    this.extension?.updateAll();
+                    this.refresh();  // refresh内部会触发treeUpdate和updateAll
                 });
 
-                this.refresh();
-                this.extension?.updateAll();
+                this.refresh();  // 初始化时调用一次refresh，它会同时处理树更新和扩展更新
                 this.events?.emit('initialized');
                 return true;
             },
@@ -380,32 +428,48 @@ import { HierarchyEvents, HierarchyEventMap, HierarchyNode, HierarchyNodeData, E
                 this.tree = null;
                 this.events = null;
                 this.extension = null;
+            },
+
+            cleanup() {
+                // 清理扩展系统
+                this.extension?.clear();
+
+                // 移除所有事件监听
+                this.events?.emit('destroy');
+                this.events?.clear();
+
+                // 清理树结构
+                this.tree?.clear();
+
+                // 清理DOM中的扩展元素
+                if (this.vue?.$el) {
+                    const extensions = this.vue.$el.querySelectorAll('[class*="hierarchy-"]');
+                    extensions.forEach(el => el.remove());
+                }
+
+                // 重置所有状态
+                this.vue = null;
+                this.tree = null;
+                this.events = null;
+                this.extension = null;
+
+                // 移除全局引用
+                window.hierarchy = null as any;
             }
         };
 
         return manager;
     }
 
-    return new Promise<void>((resolve, reject) => {
-        let retryCount = 0;
-        const checkInterval = setInterval(() => {
-            console.log(`[Hierarchy] 尝试初始化... (${retryCount + 1}/50)`);
-            
-            const manager = createHierarchyManager();
-            if (manager.init()) {
-                window.hierarchy = manager;
-                clearInterval(checkInterval);
-                console.log('[Hierarchy] 初始化成功');
-                resolve();
-                return;
-            }
-
-            if (++retryCount >= 50) {
-                clearInterval(checkInterval);
-                const error = new Error('层级管理器初始化超时');
-                console.error('[Hierarchy] 初始化失败:', error);
-                reject(error);
-            }
-        }, 200);
+    return window.utils.exponentialRetry(async () => {
+        const manager = createHierarchyManager();
+        if (!manager.init()) {
+            throw new Error('初始化失败：未找到层级面板');
+        }
+        window.hierarchy = manager;
+        window.utils.log(window.utils.LogLevel.INFO, 'Hierarchy', '初始化成功');
+    }, 100, 1000).catch(error => {
+        window.utils.log(window.utils.LogLevel.ERROR, 'Hierarchy', '初始化失败:', error);
+        throw error;
     });
 })();

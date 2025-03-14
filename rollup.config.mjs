@@ -23,7 +23,10 @@ export default {
     input: {
         main: 'source/main.ts',
         'hierarchy-init': 'source/hierarchy-init.ts',
-        'test-extension': 'source/test-extension.ts',
+        'utils': 'source/utils.ts',
+        'extensions/node-activator': 'source/extensions/node-activator.ts',
+        'extensions/header-node': 'source/extensions/header-node.ts',
+        
     },
     output: {
         dir: outputDir,

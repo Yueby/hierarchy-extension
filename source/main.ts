@@ -1,7 +1,6 @@
 import fs from "fs";
 import { WebContents, BrowserWindow } from "electron";
 import path from "path";
-import { electron } from "process";
 
 /**
  * @en Registration method for the main process of Extension
@@ -43,28 +42,50 @@ export function load() {
  * @zh 卸载扩展时触发的方法
  */
 export function unload() {
+    const webContents = getMainWebContents();
+    if (!webContents) {
+        console.error("清理失败: webContents 为空");
+        return;
+    }
+
+    // 执行清理脚本
+    webContents.executeJavaScript(`
+        if (window.hierarchy) {
+            window.hierarchy.cleanup();
+        }
+    `).catch(error => console.error('清理失败:', error));
 }
 
 function inject(): void {
     const webContents = getMainWebContents();
     if (!webContents) {
-        console.warn("注入失败: webContents 为空");
+        console.error("注入失败: webContents 为空");
         return;
     }
 
+    // 读取并合并所有必要的文件
+    const utils = fs.readFileSync(path.join(__dirname, 'utils.js'), 'utf-8');
     const hierarchyInit = fs.readFileSync(path.join(__dirname, 'hierarchy-init.js'), 'utf-8');
-    webContents.executeJavaScript(`(async () => {
+    const nodeActivator = fs.readFileSync(path.join(__dirname, 'extensions/node-activator.js'), 'utf-8');
+    const headerNode = fs.readFileSync(path.join(__dirname, 'extensions/header-node.js'), 'utf-8');
+    
+    // 构建注入脚本
+    const injectScript = `
+    (async () => {
         try {
-            await ${hierarchyInit};
-            const testExtension = ${fs.readFileSync(path.join(__dirname, 'test-extension.js'), 'utf-8')};
-            await testExtension;
+            ${utils}
+            ${hierarchyInit}
+            ${nodeActivator}
+            ${headerNode}
             return true;
         } catch (error) {
-            console.error('注入失败:', error);
+            console.error('[Hierarchy] 注入失败:', error);
             return false;
         }
-    })()`)
-    .catch(error => console.error('注入失败:', error));
+    })()`;
+
+    webContents.executeJavaScript(injectScript)
+        .catch(error => console.error('注入失败:', error));
 }
 
 function getMainWebContents(): WebContents | null {
@@ -79,7 +100,7 @@ function getMainWebContents(): WebContents | null {
             console.error('获取窗口信息时出错:', error);
         }
     }
-    console.warn("未找到Cocos Creator主窗口");
+    console.error("未找到Cocos Creator主窗口");
     return null;
 }
 
