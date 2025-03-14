@@ -240,7 +240,7 @@ import { HierarchyEvents, HierarchyEventMap, TreeNode, ExtensionOptions, Extensi
                 }
 
                 extensions.set(options.id, options);
-                window.utils.log(window.utils.LogLevel.WARN, 'Extension', `添加扩展: ${options.id}`);
+                window.utils.log(window.utils.LogLevel.INFO, 'Extension', `添加扩展: ${options.id}`);
                 manager.events?.emit('extensionAdded', options);
                 this.updateAll();
             },
@@ -254,7 +254,7 @@ import { HierarchyEvents, HierarchyEventMap, TreeNode, ExtensionOptions, Extensi
                 if (extension) {
                     extension.onDestroy?.();
                     extensions.delete(id);
-                    window.utils.log(window.utils.LogLevel.WARN, 'Extension', `移除扩展: ${id}`);
+                    window.utils.log(window.utils.LogLevel.INFO, 'Extension', `移除扩展: ${id}`);
                     manager.events?.emit('extensionRemoved', id);
                 }
             },
