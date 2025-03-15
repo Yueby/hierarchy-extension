@@ -1,13 +1,18 @@
 import { HierarchyEvents, HierarchyEventMap, TreeNode, ExtensionOptions, ExtensionInstance, HierarchyManager, HierarchyTree, TreeNodeVueComponent, HierarchyEventOptions } from './types';
 
-(function () {
+(async function () {
+    // 创建一个Promise，用于通知其他模块层级管理器已就绪
+    let resolveHierarchyReady: (value: boolean) => void;
+    window.hierarchyReady = new Promise<boolean>((resolve) => {
+        resolveHierarchyReady = resolve;
+    });
 
     /** 获取层级面板的Vue实例 */
     function getHierarchyVue() {
         // 1. 获取 dock-frame
         const dockFrame = document.getElementsByTagName("dock-frame")[0];
         if (!dockFrame?.shadowRoot) {
-            window.utils.log(window.utils.LogLevel.WARN, 'Hierarchy', '未找到dock-frame');
+            console.warn(`[hierarchy]`, '未找到dock-frame');
             return null;
         }
 
@@ -18,48 +23,29 @@ import { HierarchyEvents, HierarchyEventMap, TreeNode, ExtensionOptions, Extensi
         );
 
         if (!hierarchyPanel?.shadowRoot) {
-            window.utils.log(window.utils.LogLevel.WARN, 'Hierarchy', '未找到hierarchy面板');
+            console.warn(`[hierarchy]`, '未找到hierarchy面板');
             return null;
         }
 
         // 3. 获取drag-area
         const dragArea = hierarchyPanel.shadowRoot.querySelector("ui-drag-area");
         if (!dragArea) {
-            window.utils.log(window.utils.LogLevel.WARN, 'Hierarchy', '未找到drag-area');
+            console.warn(`[hierarchy]`, '未找到drag-area');
             return null;
         }
 
         // 4. 获取Vue实例
         const vue = (dragArea as any).__vue__;
         if (!vue) {
-            window.utils.log(window.utils.LogLevel.WARN, 'Hierarchy', '未找到Vue实例');
+            console.warn(`[hierarchy]`, '未找到Vue实例');
             return null;
         }
 
         // 5. 等待节点数据加载
         if (!vue.nodes?.length) {
-            window.utils.log(window.utils.LogLevel.WARN, 'Hierarchy', '节点数据未加载');
+            // console.warn(`[hierarchy]`, '节点数据未加载');
             return null;
         }
-
-        // 6. 输出调试信息
-        window.utils.log(window.utils.LogLevel.DEBUG, 'Hierarchy', '场景结构:', vue.nodes.map((node: TreeNode) => ({
-            name: node.name,
-            type: node.type,
-            depth: node.depth,
-            path: node.path,
-            children: node.children?.length || 0
-        })));
-
-        window.utils.log(window.utils.LogLevel.DEBUG, 'Hierarchy', 'Vue组件节点数据:', vue.$children?.map((child: TreeNodeVueComponent) => ({
-            name: child.$props.node.name,
-            uuid: child.$props.node.uuid,
-            type: child.$props.node.type,
-            path: child.$props.node.path,
-            depth: child.$props.node.depth,
-            element: child.$el.outerHTML,
-            完整节点: child.$props.node
-        })));
 
         return vue;
     };
@@ -88,7 +74,7 @@ import { HierarchyEvents, HierarchyEventMap, TreeNode, ExtensionOptions, Extensi
                     try {
                         callback(...args);
                     } catch (error) {
-                        window.utils.log(window.utils.LogLevel.ERROR, 'Events', `事件处理错误 [${String(event)}]:`, error);
+                        console.error(`[hierarchy-events]`, '事件处理错误:', String(event), error);
                     }
 
                     // 如果是一次性事件，执行后移除
@@ -240,7 +226,7 @@ import { HierarchyEvents, HierarchyEventMap, TreeNode, ExtensionOptions, Extensi
                 }
 
                 extensions.set(options.id, options);
-                window.utils.log(window.utils.LogLevel.INFO, 'Extension', `添加扩展: ${options.id}`);
+                console.info(`[hierarchy-extension]`, '添加扩展:', options.id);
                 manager.events?.emit('extensionAdded', options);
                 this.updateAll();
             },
@@ -254,7 +240,7 @@ import { HierarchyEvents, HierarchyEventMap, TreeNode, ExtensionOptions, Extensi
                 if (extension) {
                     extension.onDestroy?.();
                     extensions.delete(id);
-                    window.utils.log(window.utils.LogLevel.INFO, 'Extension', `移除扩展: ${id}`);
+                    console.info(`[hierarchy-extension]`, '移除扩展:', id);
                     manager.events?.emit('extensionRemoved', id);
                 }
             },
@@ -265,7 +251,7 @@ import { HierarchyEvents, HierarchyEventMap, TreeNode, ExtensionOptions, Extensi
 
             updateAll() {
                 if (!manager.vue || !manager.tree) {
-                    window.utils.log(window.utils.LogLevel.ERROR, 'Extension', '更新取消: manager未就绪');
+                    console.error(`[hierarchy-extension]`, '更新取消: manager未就绪');
                     return;
                 }
 
@@ -339,7 +325,6 @@ import { HierarchyEvents, HierarchyEventMap, TreeNode, ExtensionOptions, Extensi
             }, 50),
 
             _doRefresh() {
-                window.utils.log(window.utils.LogLevel.INFO, 'Hierarchy', '开始刷新');
                 if (!this.vue || !this.tree) return;
 
                 this.tree.clear();
@@ -360,15 +345,6 @@ import { HierarchyEvents, HierarchyEventMap, TreeNode, ExtensionOptions, Extensi
                     if (treeNode) {
                         // 设置组件引用
                         node.vueComponent = treeNode;
-
-                        // 输出节点信息
-                        window.utils.log(window.utils.LogLevel.DEBUG, 'Hierarchy', '处理节点:', {
-                            name: node.name,
-                            path: node.path,
-                            depth: node.depth,
-                            uuid: node.uuid,
-                            element: treeNode.$el?.outerHTML || '未找到元素'
-                        });
                     }
                 }
 
@@ -461,15 +437,53 @@ import { HierarchyEvents, HierarchyEventMap, TreeNode, ExtensionOptions, Extensi
         return manager;
     }
 
-    return window.utils.exponentialRetry(async () => {
-        const manager = createHierarchyManager();
-        if (!manager.init()) {
-            throw new Error('初始化失败：未找到层级面板');
+    /**
+     * 使用固定间隔重试初始化
+     * @param maxAttempts 最大尝试次数
+     * @param interval 重试间隔(毫秒)
+     */
+    async function retryInitialization(maxAttempts = 5, interval = 500): Promise<void> {
+        let attempts = 0;
+
+        while (attempts < maxAttempts) {
+            try {
+                const manager = createHierarchyManager();
+                if (manager.init()) {
+                    window.hierarchy = manager;
+                    resolveHierarchyReady(true);
+                    return;
+                }
+            } catch (error) {
+                // 只在第一次尝试时输出详细日志
+                if (attempts === 0) {
+                    console.warn(`[hierarchy]`, `初始化尝试失败:`, error);
+                }
+            }
+
+            attempts++;
+
+            // 如果还有尝试次数，则等待指定间隔
+            if (attempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, interval));
+                // 减少日志输出，只在第一次和最后一次尝试时输出
+                // if (attempts === 1 || attempts === maxAttempts - 1) {
+                //     console.info(`[hierarchy]`, `重试初始化 (${attempts + 1}/${maxAttempts})...`);
+                // }
+            }
         }
-        window.hierarchy = manager;
-        window.utils.log(window.utils.LogLevel.INFO, 'Hierarchy', '初始化成功');
-    }, 100, 1000).catch(error => {
-        window.utils.log(window.utils.LogLevel.ERROR, 'Hierarchy', '初始化失败:', error);
-        throw error;
-    });
+
+        // 所有尝试都失败，但不抛出错误，因为会在scene:ready时重试
+        console.warn(`[hierarchy]`, `初始化未成功: 等待场景准备好后再次尝试`);
+        resolveHierarchyReady(false);
+    }
+
+    // 开始初始化过程
+    try {
+        // 使用固定间隔重试，最多5次，每次间隔500ms
+        // 减少初始尝试次数，因为我们有scene:ready作为备份
+        await retryInitialization(5, 500);
+    } catch (error) {
+        console.error(`[hierarchy]`, '初始化过程中断:', error);
+        // 不在这里调用resolveHierarchyReady，因为retryInitialization内部已经处理了
+    }
 })();

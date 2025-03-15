@@ -1,0 +1,47 @@
+---
+description: Extension Rules - Guidelines for extension development
+globs: 
+alwaysApply: false
+---
+
+# Extension Development Rules
+
+Each extension file must follow these guidelines:
+
+- Each file should be a self-executing function designed for `webContents.executeJavaScript`
+- Imports are allowed, but no exports are allowed in the files
+- Files should be self-contained and independent
+- Only type definitions (type, interface) are allowed, class declarations are not permitted
+- All console logs must be prefixed with the extension's id for easy debugging
+
+Example structure:
+```javascript
+// Type definitions
+interface Config {
+    key: string;
+    value: number;
+}
+
+type Handler = (data: Config) => void;
+
+// You can use both require and import
+import { someFunction } from 'some-package';
+
+(function() {
+    const someModule = require('some-module');
+    
+    const extensionOptions = {
+        id: 'example-extension',
+        // ... other options
+    };
+    
+    window.hierarchy?.extension?.add(extensionOptions);
+})();
+```
+
+Console log format example:
+```javascript
+console.log(`[${extensionId}]`, 'your log message here');
+// e.g. console.log(`[header-node]`, 'Node created');
+```
+

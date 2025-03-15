@@ -11,6 +11,11 @@
                 "methods": [
                     "setNodeActive"
                 ]
+            },
+            "scene:ready": {
+                "methods": [
+                    "onSceneReady"
+                ]
             }
         },
         "shortcuts": [

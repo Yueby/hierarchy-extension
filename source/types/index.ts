@@ -89,20 +89,8 @@ export interface HierarchyManager {
     getNode(uuid: string): TreeNode | undefined;
 }
 
-/** 日志级别类型 */
-export type LogLevelType = 0 | 1 | 2 | 3;
-
-/** 日志级别常量 */
-export const LogLevel = {
-    DEBUG: 0,
-    INFO: 1,
-    WARN: 2,
-    ERROR: 3
-} as const;
-
+/** 工具函数集合 */
 export interface Utils {
-    LogLevel: typeof LogLevel;
-    log(level: LogLevelType, tag: string, ...args: any[]): void;
     debounce<T extends (...args: any[]) => any>(fn: T, delay: number): (...args: Parameters<T>) => void;
     throttle<T extends (...args: any[]) => any>(fn: T, limit: number): (...args: Parameters<T>) => void;
     safeQuerySelector<T extends Element>(selector: string, parent?: Element | Document): T | null;
@@ -115,6 +103,7 @@ declare global {
     interface Window {
         utils: Utils;
         hierarchy: HierarchyManager;
+        hierarchyReady: Promise<boolean>;
     }
 }
 
@@ -219,8 +208,6 @@ export interface HierarchyExtension {
 
 /** 工具函数集合 */
 export interface HierarchyUtils {
-    log: (level: LogLevelType, tag: string, ...args: any[]) => void;
-    LogLevel: typeof LogLevel;
     debounce: <T extends (...args: any[]) => any>(
         fn: T,
         wait: number
@@ -235,9 +222,7 @@ export interface HierarchyUtils {
         maxRetries?: number,
         initialDelay?: number
     ) => Promise<T>;
-    createStyle: (id: string, css: string) => HTMLStyleElement;
     safeQuerySelector: <T extends Element>(selector: string, parent?: Element | Document) => T | null;
     appendChildren: (parent: Element, children: Element[]) => void;
-    setLogLevel: (level: LogLevelType) => void;
     throttle: <T extends (...args: any[]) => any>(fn: T, limit: number) => (...args: Parameters<T>) => void;
 }

@@ -15,22 +15,18 @@ import { ExtensionOptions, TreeNode } from '../types';
             const dragItem = element.closest('ui-drag-item');
             const paddingLeft = dragItem ? window.getComputedStyle(dragItem).paddingLeft : '0px';
 
-            // 先检查是否已存在
-            const existingBars = element.getElementsByClassName(this.className);
-            window.utils.log(window.utils.LogLevel.DEBUG, 'HeaderNode', '查找现有标题栏:', {
-                nodeName: node.name,
-                existingBars: existingBars.length,
-                elementChildren: element.children.length,
-                elementHTML: element.innerHTML
-            });
+            // 生成唯一的headerbar id
+            const headerId = `${this.id}`;
 
-            if (existingBars.length > 0) {
-                window.utils.log(window.utils.LogLevel.DEBUG, 'HeaderNode', '找到现有标题栏，跳过创建');
+            // 查找是否已存在
+            let headerBar = element.querySelector('#' + headerId) as HTMLElement;
+            if (headerBar) {
                 return;
             }
 
             // 创建标题栏容器
-            const headerBar = document.createElement('div');
+            headerBar = document.createElement('div');
+            headerBar.id = headerId;
             headerBar.className = this.className;
             headerBar.style.cssText = `
                 position: absolute;
@@ -61,17 +57,12 @@ import { ExtensionOptions, TreeNode } from '../types';
             // 组装DOM
             headerBar.appendChild(titleText);
             element.appendChild(headerBar);
-            
-            window.utils.log(window.utils.LogLevel.DEBUG, 'HeaderNode', '创建新标题栏完成:', {
-                nodeName: node.name,
-                headerBarHTML: headerBar.outerHTML
-            });
         },
 
         onUpdate(node: TreeNode, element: HTMLElement) {
-            const existingBars = element.getElementsByClassName(this.className);
-            if (existingBars.length > 0) {
-                const headerBar = existingBars[0] as HTMLElement;
+            const headerId = `header-${node.uuid}`;
+            const headerBar = element.querySelector('#' + headerId) as HTMLElement;
+            if (headerBar) {
                 const titleText = headerBar.querySelector('span');
                 if (titleText) {
                     titleText.textContent = node.name.substring(2);

@@ -8,7 +8,7 @@ import { ExtensionOptions, HTMLCustomElement, TreeNode } from '../types';
         priority: 90,
 
         isVisible: (node: TreeNode) => {
-            return true;
+            return !node.name.startsWith('#h');
         },
 
         onCreate(node: TreeNode, element: HTMLElement) {
@@ -36,7 +36,7 @@ import { ExtensionOptions, HTMLCustomElement, TreeNode } from '../types';
             checkBox.addEventListener('mousedown', (e) => {
                 e.stopPropagation();
             });
-            
+
             checkBox.addEventListener('click', (e) => {
                 e.stopPropagation();
             });
@@ -44,7 +44,6 @@ import { ExtensionOptions, HTMLCustomElement, TreeNode } from '../types';
             const onChange = (e: Event) => {
                 e.stopPropagation();
                 const value = checkBox.value;
-                window.utils.log(window.utils.LogLevel.DEBUG, 'NodeActivator', '节点激活状态变更:', value);
 
                 // 通过 Editor.Message 更新节点激活状态
                 Editor.Message.request('scene', 'set-property', {
@@ -55,7 +54,7 @@ import { ExtensionOptions, HTMLCustomElement, TreeNode } from '../types';
                         value: value
                     }
                 });
-            }
+            };
 
             // 监听复选框变化
             checkBox.removeEventListener('change', onChange);
@@ -80,10 +79,10 @@ import { ExtensionOptions, HTMLCustomElement, TreeNode } from '../types';
         try {
             window.hierarchy.extension.add(nodeActivator);
         } catch (error) {
-            window.utils.log(window.utils.LogLevel.ERROR, 'NodeActivator', '扩展初始化失败:', error);
+            console.error(`[node-activator]`, '扩展初始化失败:', error);
         }
     } else {
-        window.utils.log(window.utils.LogLevel.ERROR, 'NodeActivator', '无法初始化扩展: hierarchy未就绪');
+        console.error(`[node-activator]`, '无法初始化扩展: hierarchy未就绪');
     }
 })();
 

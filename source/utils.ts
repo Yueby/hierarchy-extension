@@ -3,30 +3,6 @@ import { Utils } from "./types";
 (function () {
     // 初始化全局utils对象
     const utils: Utils = {
-        LogLevel: {
-            DEBUG: 0,
-            INFO: 1,
-            WARN: 2,
-            ERROR: 3
-        } as const,
-
-        log(level: 0 | 1 | 2 | 3, tag: string, ...args: any[]): void {
-            // 只输出 WARN 和 ERROR 级别的日志
-            if (level < this.LogLevel.WARN) return;
-
-            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
-            const prefix = `[${timestamp}][${Object.keys(this.LogLevel)[level]}][${tag}]`;
-
-            switch (level) {
-                case this.LogLevel.WARN:
-                    console.warn(prefix, ...args);
-                    break;
-                case this.LogLevel.ERROR:
-                    console.error(prefix, ...args);
-                    break;
-            }
-        },
-
         debounce<T extends (...args: any[]) => any>(fn: T, delay: number): (...args: Parameters<T>) => void {
             let timer: number | null = null;
 
@@ -59,7 +35,7 @@ import { Utils } from "./types";
             try {
                 return parent.querySelector<T>(selector);
             } catch (error) {
-                this.log(this.LogLevel.ERROR, 'DOM', `选择器错误: ${selector}`, error);
+                console.error('[hierarchy-utils]', '选择器错误:', selector, error);
                 return null;
             }
         },
@@ -112,7 +88,7 @@ import { Utils } from "./types";
                     }
 
                     const delay = initialDelay * Math.pow(2, retries);
-                    this.log(this.LogLevel.WARN, 'Retry', `重试 ${retries + 1}/${maxRetries}，延迟 ${delay}ms`);
+                    console.warn('[hierarchy-utils]', `重试 ${retries + 1}/${maxRetries}，延迟 ${delay}ms`);
 
                     await new Promise(resolve => setTimeout(resolve, delay));
                     retries++;
